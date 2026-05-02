@@ -117,7 +117,7 @@ El sistema ha sido diseñado bajo principios de integridad y privacidad:
 
 # Contacto
 
-Si esta interesado en contactarme puede realizarlo medainte mis redes sociales
+Si esta interesado en contactarme puede realizarlo mediante mis redes sociales
 
 [Linkedin](https://www.linkedin.com/in/macoronadob)
 
