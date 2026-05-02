@@ -55,7 +55,7 @@ Para iniciar ambos servidores simultáneamente:
 ```bash
 npm run dev
 ```
-
+<img width="503" height="140" alt="image" src="https://github.com/user-attachments/assets/68bf4a6c-6ceb-4d15-97e9-06cee82cd0e8" />
 ---
 
 ## 🔐 Credenciales por Defecto
