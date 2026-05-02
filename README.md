@@ -70,6 +70,7 @@ Al iniciar el sistema por primera vez, utiliza los siguientes datos para acceder
 > Se recomienda cambiar la contraseña inmediatamente desde la pestaña de **Ajustes > Seguridad** una vez dentro del sistema.
 
 <img width="706" height="295" alt="image" src="https://github.com/user-attachments/assets/b8487106-3bd4-4f17-8582-c9746eaf4f80" />
+
 ---
 
 ## 📈 Flujo de Trabajo Operativo
