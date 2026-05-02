@@ -47,6 +47,7 @@ Ejecuta el siguiente comando en la raíz para instalar todos los módulos necesa
 ```bash
 npm run install:all
 ```
+<img width="557" height="203" alt="image" src="https://github.com/user-attachments/assets/1624f580-1c7d-4483-9a1c-1b89cf5d5e09" />
 
 ### 3. Ejecución en Desarrollo
 Para iniciar ambos servidores simultáneamente:
