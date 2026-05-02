@@ -76,14 +76,21 @@ Al iniciar el sistema por primera vez, utiliza los siguientes datos para acceder
 ### 1. Configuración de la Elección
 Desde la pestaña **Ajustes**, define el nombre del sindicato, la fecha de la elección y sube el logotipo institucional. Configura el servidor SMTP para habilitar el envío automático de tokens.
 
+<img width="713" height="456" alt="image" src="https://github.com/user-attachments/assets/6fb76fad-aee9-4d16-8ef7-1886842625b6" />
+
+
 ### 2. Creación de Planchas y Candidatos
 - En la sección **Planchas**, crea las opciones electorales.
 - Dentro de cada plancha, registra a los integrantes (Candidatos) especificando su nombre y el cargo al que aspiran.
+
+<img width="1021" height="348" alt="image" src="https://github.com/user-attachments/assets/e8d91a91-3a86-42f0-8709-0356735541c9" />
 
 ### 3. Gestión del Censo y Tokens
 - Sube el listado de electores mediante la plantilla Excel proporcionada en el panel.
 - El sistema generará un Token secreto para cada persona.
 - Utiliza la función "Enviar Tokens por Email" para notificar a los votantes de forma masiva.
+
+<img width="1031" height="328" alt="image" src="https://github.com/user-attachments/assets/f255f74c-ccd8-4370-9ca1-09acb28a61a9" />
 
 ### 4. Proceso de Votación
 - El elector ingresa a la página principal con su Token.
@@ -94,6 +101,7 @@ Desde la pestaña **Ajustes**, define el nombre del sindicato, la fecha de la el
 - El administrador puede ver el conteo de votos en tiempo real.
 - Al finalizar, se puede generar un **Reporte Oficial en PDF** con los resultados finales y el listado de participación.
 
+<img width="1047" height="597" alt="image" src="https://github.com/user-attachments/assets/61fd13aa-8f60-4a3f-9123-0f46f99ec6da" />
 ---
 
 ## 🛡️ Seguridad y Anonimato del Voto
@@ -107,4 +115,11 @@ El sistema ha sido diseñado bajo principios de integridad y privacidad:
 
 ---
 
+# Contacto
+
+Si esta interesado en contactarme puede realizarlo medainte mis redes sociales
+
+[Linkedin](https://www.linkedin.com/in/macoronadob)
+
+[Facebook](https://www.facebook.com/marcoalberto.coronadobaquero)
 
