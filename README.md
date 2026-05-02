@@ -1,0 +1,105 @@
+# 🗳️ VotoSindical - Sistema de Elecciones Electrónicas
+
+**VotoSindical** es una solución profesional, segura y moderna diseñada para la gestión integral de procesos electorales en organizaciones y sindicatos. El sistema garantiza la transparencia, el anonimato del voto y la eficiencia en la entrega de resultados en tiempo real.
+
+---
+
+## 🚀 Características Principales
+
+- **Gestión Multi-Plancha:** Creación y administración de planchas electorales con perfiles detallados de candidatos.
+- **Censo Electoral Digital:** Importación masiva de electores vía Excel y generación automática de tokens únicos (UUID).
+- **Notificación Inteligente:** Envío de códigos de votación mediante correo electrónico integrado (SMTP).
+- **Urna Electrónica Blindada:** Registro de votos anónimos mediante transacciones SQL atómicas.
+- **Dashboard de Administración:** Panel premium para monitoreo en vivo, gestión de candidatos y descarga de reportes PDF.
+- **Documentación Integrada:** Generación automática de manuales técnicos, diccionarios de datos y guías de API en PDF.
+
+---
+
+## 🛠️ Requisitos del Sistema
+
+- **Node.js:** Versión 18 o superior.
+- **NPM:** Gestor de paquetes incluido en Node.js.
+- **Base de Datos:** SQLite (No requiere servidor de base de datos externo).
+- **Navegador:** Compatible con estándares modernos (Chrome, Firefox, Edge, Safari).
+
+---
+
+## 📦 Instalación y Despliegue
+
+### 1. Preparación del Entorno
+Clona el repositorio y configura las variables de entorno en el archivo `.env` de la raíz:
+
+```env
+BACKEND_PORT=3000
+FRONTEND_PORT=5173
+JWT_SECRET=tu_secreto_aleatorio_aqui
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=admin123
+```
+
+### 2. Instalación de Dependencias
+Ejecuta el siguiente comando en la raíz para instalar todos los módulos necesarios (Raíz, Backend y Frontend):
+
+```bash
+npm run install:all
+```
+
+### 3. Ejecución en Desarrollo
+Para iniciar ambos servidores simultáneamente:
+
+```bash
+npm run dev
+```
+
+---
+
+## 🔐 Credenciales por Defecto
+
+Al iniciar el sistema por primera vez, utiliza los siguientes datos para acceder al panel administrativo:
+
+- **URL:** `http://localhost:5173/admin`
+- **Usuario:** `admin`
+- **Contraseña:** `admin123`
+
+> [!IMPORTANT]
+> Se recomienda cambiar la contraseña inmediatamente desde la pestaña de **Ajustes > Seguridad** una vez dentro del sistema.
+
+---
+
+## 📈 Flujo de Trabajo Operativo
+
+### 1. Configuración de la Elección
+Desde la pestaña **Ajustes**, define el nombre del sindicato, la fecha de la elección y sube el logotipo institucional. Configura el servidor SMTP para habilitar el envío automático de tokens.
+
+### 2. Creación de Planchas y Candidatos
+- En la sección **Planchas**, crea las opciones electorales.
+- Dentro de cada plancha, registra a los integrantes (Candidatos) especificando su nombre y el cargo al que aspiran.
+
+### 3. Gestión del Censo y Tokens
+- Sube el listado de electores mediante la plantilla Excel proporcionada en el panel.
+- El sistema generará un Token secreto para cada persona.
+- Utiliza la función "Enviar Tokens por Email" para notificar a los votantes de forma masiva.
+
+### 4. Proceso de Votación
+- El elector ingresa a la página principal con su Token.
+- Selecciona su opción preferida y confirma su voto secreto.
+- Una vez emitido, el Token queda invalidado permanentemente.
+
+### 5. Resultados y Auditoría
+- El administrador puede ver el conteo de votos en tiempo real.
+- Al finalizar, se puede generar un **Reporte Oficial en PDF** con los resultados finales y el listado de participación.
+
+---
+
+## 🛡️ Seguridad y Anonimato del Voto
+
+El sistema ha sido diseñado bajo principios de integridad y privacidad:
+
+1. **Anonimato Total:** La base de datos registra que un elector *ya participó* para evitar la duplicidad, pero el registro del voto en la "Urna" no contiene ninguna referencia al elector. No existe trazabilidad técnica que vincule la identidad con la elección realizada.
+2. **Atomicidad:** El uso de transacciones SQL garantiza que el registro del voto y la invalidación del token ocurran simultáneamente; si uno falla, el otro no se realiza, evitando errores en el conteo.
+3. **Cifrado:** Las sesiones administrativas están protegidas mediante JWT (JSON Web Tokens) y las contraseñas se almacenan cifradas con algoritmos de hash de alta seguridad.
+4. **Integridad de Datos:** Los tokens UUID de 36 caracteres hacen que sea estadísticamente imposible adivinar un código de acceso válido.
+
+---
+
+
