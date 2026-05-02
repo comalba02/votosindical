@@ -2,6 +2,7 @@
 
 **VotoSindical** es una solución profesional, segura y moderna diseñada para la gestión integral de procesos electorales en organizaciones y sindicatos. El sistema garantiza la transparencia, el anonimato del voto y la eficiencia en la entrega de resultados en tiempo real.
 
+<img width="1075" height="596" alt="Image" src="https://github.com/user-attachments/assets/ebf0d2e6-4fb8-4768-b74b-731bfc843241" />
 ---
 
 ## 🚀 Características Principales
@@ -13,6 +14,7 @@
 - **Dashboard de Administración:** Panel premium para monitoreo en vivo, gestión de candidatos y descarga de reportes PDF.
 - **Documentación Integrada:** Generación automática de manuales técnicos, diccionarios de datos y guías de API en PDF.
 
+<img width="1070" height="482" alt="image" src="https://github.com/user-attachments/assets/ef1b80bd-ddd8-4cea-901c-70469271e033" />
 ---
 
 ## 🛠️ Requisitos del Sistema
@@ -21,6 +23,8 @@
 - **NPM:** Gestor de paquetes incluido en Node.js.
 - **Base de Datos:** SQLite (No requiere servidor de base de datos externo).
 - **Navegador:** Compatible con estándares modernos (Chrome, Firefox, Edge, Safari).
+
+<img width="466" height="356" alt="image" src="https://github.com/user-attachments/assets/247241dd-2469-4731-8a11-3ec07b18bd47" />
 
 ---
 
@@ -64,6 +68,7 @@ Al iniciar el sistema por primera vez, utiliza los siguientes datos para acceder
 > [!IMPORTANT]
 > Se recomienda cambiar la contraseña inmediatamente desde la pestaña de **Ajustes > Seguridad** una vez dentro del sistema.
 
+<img width="706" height="295" alt="image" src="https://github.com/user-attachments/assets/b8487106-3bd4-4f17-8582-c9746eaf4f80" />
 ---
 
 ## 📈 Flujo de Trabajo Operativo
