@@ -33,8 +33,8 @@ Clona el repositorio y configura las variables de entorno en el archivo `.env` d
 BACKEND_PORT=3000
 FRONTEND_PORT=5173
 JWT_SECRET=tu_secreto_aleatorio_aqui
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin123
+FRONTEND_URL=https://votaciones.itasesorias.com
+VITE_API_URL=https://api.itasesorias.com
 ```
 
 ### 2. Instalación de Dependencias
