@@ -88,7 +88,7 @@ export default function AdminDashboard() {
     fetchData();
   }, [activeTab, navigate, token]);
 
-  const fetchData = async (forceLoading = false) => {
+  const fetchData = async (forceLoading = false, retryCount = 0) => {
     if (activeTab === 'documentation') return;
     
     if (!cache[activeTab] || forceLoading) {
@@ -132,12 +132,12 @@ export default function AdminDashboard() {
       setError(null);
     } catch (err) {
       console.error(err);
-      // Reintento automático simple si es un error de conexión (Failed to fetch)
-      if (err.message === 'Failed to fetch' && !cache[activeTab]) {
-        setTimeout(() => fetchData(forceLoading), 1500);
+      // Reintento automático simple si es un error de conexión (Failed to fetch) hasta 3 veces
+      if (err.message === 'Failed to fetch' && !cache[activeTab] && retryCount < 3) {
+        setTimeout(() => fetchData(forceLoading, retryCount + 1), 1500);
         return;
       }
-      if (!cache[activeTab]) setError(err.message);
+      if (!cache[activeTab]) setError(err.message === 'Failed to fetch' ? 'No se pudo conectar con el servidor (Failed to fetch). Verifica tu conexión o configuración de red.' : err.message);
     } finally {
       setLoading(false);
     }

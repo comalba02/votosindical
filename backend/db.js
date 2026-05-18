@@ -76,6 +76,36 @@ db.exec(`
     CREATE INDEX IF NOT EXISTS idx_votes_slate ON votes(slate_id);
   `);
 
+// --- MIGRACIONES DE BASE DE DATOS (Asegurar columnas antes de realizar consultas) ---
+const tableInfo = db.prepare("PRAGMA table_info(settings)").all();
+const columns = tableInfo.map(col => col.name);
+
+if (!columns.includes('smtp_host')) {
+  db.exec(`
+    ALTER TABLE settings ADD COLUMN smtp_host TEXT;
+    ALTER TABLE settings ADD COLUMN smtp_port INTEGER;
+    ALTER TABLE settings ADD COLUMN smtp_user TEXT;
+    ALTER TABLE settings ADD COLUMN smtp_pass TEXT;
+    ALTER TABLE settings ADD COLUMN smtp_secure INTEGER DEFAULT 1;
+  `);
+}
+
+if (!columns.includes('smtp_delay')) {
+  db.exec('ALTER TABLE settings ADD COLUMN smtp_delay INTEGER DEFAULT 1');
+}
+
+if (!columns.includes('cargos_initialized')) {
+  db.exec('ALTER TABLE settings ADD COLUMN cargos_initialized INTEGER DEFAULT 0');
+}
+
+const votersTableInfo = db.prepare("PRAGMA table_info(voters)").all();
+const voterColumns = votersTableInfo.map(c => c.name);
+if (!voterColumns.includes('timestamp_vote')) {
+  db.exec('ALTER TABLE voters ADD COLUMN timestamp_vote TEXT');
+}
+
+// --- POBLAR DATOS INICIALES (SEEDS) ---
+
 // Asegurar que existe la fila de configuración id = 1
 const settingsCheck = db.prepare('SELECT * FROM settings WHERE id = 1').get();
 if (!settingsCheck) {
@@ -84,6 +114,12 @@ if (!settingsCheck) {
     VALUES (1, 'Sindicato Ejemplo', 'Elecciones 2024', '', '', '', '', null, '', '', 1, 1, 0)
   `).run();
   console.log('Configuración inicial creada.');
+} else {
+  // Si la fila ya existía de antes de la migración y cargos_initialized es NULL, lo ponemos en 1 para conservar compatibilidad
+  const currentSettings = db.prepare('SELECT cargos_initialized FROM settings WHERE id = 1').get();
+  if (currentSettings && currentSettings.cargos_initialized === null) {
+    db.prepare('UPDATE settings SET cargos_initialized = 1 WHERE id = 1').run();
+  }
 }
 
 // Insertar cargos iniciales si no han sido inicializados antes
@@ -111,36 +147,6 @@ if (isInitialized === 0) {
     db.prepare('UPDATE settings SET cargos_initialized = 1 WHERE id = 1').run();
   })();
   console.log('Cargos iniciales insertados.');
-}
-
-// Migración para añadir columnas SMTP si no existen
-const tableInfo = db.prepare("PRAGMA table_info(settings)").all();
-const columns = tableInfo.map(col => col.name);
-
-if (!columns.includes('smtp_host')) {
-  db.exec(`
-    ALTER TABLE settings ADD COLUMN smtp_host TEXT;
-    ALTER TABLE settings ADD COLUMN smtp_port INTEGER;
-    ALTER TABLE settings ADD COLUMN smtp_user TEXT;
-    ALTER TABLE settings ADD COLUMN smtp_pass TEXT;
-    ALTER TABLE settings ADD COLUMN smtp_secure INTEGER DEFAULT 1;
-  `);
-}
-
-if (!columns.includes('smtp_delay')) {
-  db.exec('ALTER TABLE settings ADD COLUMN smtp_delay INTEGER DEFAULT 1');
-}
-
-if (!columns.includes('cargos_initialized')) {
-  db.exec('ALTER TABLE settings ADD COLUMN cargos_initialized INTEGER DEFAULT 0');
-  // Si ya existían datos, marcar como inicializado para no duplicar ni forzar su inserción
-  db.exec('UPDATE settings SET cargos_initialized = 1 WHERE id = 1');
-}
-
-const votersTableInfo = db.prepare("PRAGMA table_info(voters)").all();
-const voterColumns = votersTableInfo.map(c => c.name);
-if (!voterColumns.includes('timestamp_vote')) {
-  db.exec('ALTER TABLE voters ADD COLUMN timestamp_vote TEXT');
 }
 
 // Insertar admin inicial si la tabla está vacía
