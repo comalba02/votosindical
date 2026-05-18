@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { KeyRound, ArrowRight, AlertCircle } from 'lucide-react';
 import { API_URL } from '../config';
 
@@ -8,6 +8,20 @@ export default function ElectorLogin() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { urlToken } = useParams();
+
+  useEffect(() => {
+    if (urlToken) {
+      setToken(urlToken);
+    } else {
+      const params = new URLSearchParams(location.search);
+      const tokenParam = params.get('token');
+      if (tokenParam) {
+        setToken(tokenParam);
+      }
+    }
+  }, [location, urlToken]);
 
   const handleLogin = async (e) => {
     e.preventDefault();

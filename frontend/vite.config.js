@@ -13,7 +13,11 @@ export default defineConfig(({ mode }) => {
     envDir: '../',
     server: {
       port: parseInt(env.FRONTEND_PORT) || 5173,
-      allowedHosts: ['votaciones.itasesorias.com']
+      allowedHosts: ['votaciones.itasesorias.com', 'localhost']
+    },
+    preview: {
+      port: parseInt(env.FRONTEND_PORT) || 5173,
+      allowedHosts: ['votaciones.itasesorias.com', 'localhost']
     }
   }
 })

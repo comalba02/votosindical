@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "Root of VotoSindical project",
   "scripts": {
-    "start": "cd backend && npm start",
+    "start": "npm run build:frontend && concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm run preview -- --host",
+    "build:frontend": "cd frontend && npm run build",
     "dev:backend": "cd backend && npm run dev:backend",
     "dev:frontend": "cd frontend && npm run dev",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",

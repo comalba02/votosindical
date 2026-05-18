@@ -125,3 +125,5 @@ Si esta interesado en contactarme puede realizarlo mediante mis redes sociales
 
 [Facebook](https://www.facebook.com/marcoalberto.coronadobaquero)
 
+[Whatsapp](https://wa.me/+573508207373)
+

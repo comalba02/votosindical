@@ -10,6 +10,17 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
 const { v4: uuidv4 } = require('uuid');
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const generateToken = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let t = '';
+  for (let i = 0; i < 8; i++) {
+    t += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `${t.substring(0, 4)}-${t.substring(4, 8)}`;
+};
 const fs = require('fs');
 const multer = require('multer');
 const Database = require('better-sqlite3');
@@ -43,6 +54,96 @@ const authenticateAdmin = (req, res, next) => {
   } catch (err) {
     res.status(403).json({ error: 'Invalid or expired token' });
   }
+};
+
+const generateEmailTemplate = (settings, voter, isTest = false) => {
+  const attachments = [];
+  let logoHtml = '';
+
+  if (settings.logo_base64) {
+    attachments.push({
+      filename: 'logo.png',
+      path: settings.logo_base64,
+      cid: 'logo_sindicato'
+    });
+    logoHtml = `<div style="text-align: center; margin-bottom: 20px;"><img src="cid:logo_sindicato" alt="Logo Sindicato" style="max-height: 80px; border-radius: 8px;" /></div>`;
+  }
+
+  const fechaActual = new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' });
+  const horaActual = new Date().toLocaleTimeString('es-CO');
+  const trazabilidadId = isTest ? 'TEST-0000-0000' : uuidv4().split('-')[0].toUpperCase();
+
+  const html = `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="background-color: #f8fafc; padding: 30px 40px; border-bottom: 1px solid #e2e8f0;">
+        ${logoHtml}
+        <h2 style="color: #1e293b; text-align: center; margin: 0; font-size: 24px; font-weight: 800;">${settings.eleccion_nombre || 'Elecciones Sindicales'}</h2>
+        <p style="color: #64748b; text-align: center; margin: 5px 0 0 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">${settings.union_nombre || ''}</p>
+      </div>
+      
+      <div style="padding: 40px;">
+        <h3 style="color: #334155; font-size: 18px; margin-top: 0;">Estimado/a ${voter.nombre},</h3>
+        
+        <p style="color: #475569; font-size: 15px; line-height: 1.6;">
+          Te extendemos una cordial invitación para ejercer tu derecho al voto en la presente jornada electoral. Tu participación es fundamental para fortalecer la democracia dentro de nuestra organización y elegir a nuestros representantes.
+        </p>
+
+        <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 25px; margin: 30px 0; text-align: center;">
+          <p style="color: #166534; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px 0;">Tu Código Único y Secreto de Votación</p>
+          <div style="font-size: 36px; font-weight: 900; letter-spacing: 6px; color: #15803d; font-family: monospace;">
+            ${voter.token}
+          </div>
+          <p style="color: #166534; font-size: 12px; margin: 15px 0 0 0; opacity: 0.8;">⚠️ Este código es personal, intransferible y de un solo uso.</p>
+        </div>
+
+        <div style="text-align: center; margin: 35px 0;">
+          <a href="https://votaciones.itasesorias.com/v/${voter.token}" style="background-color: #2563eb; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);">
+            Ir al Sistema de Votación
+          </a>
+        </div>
+
+        <div style="border-top: 2px dashed #e2e8f0; margin-top: 40px; padding-top: 30px;">
+          <h4 style="color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px 0;">Trazabilidad y Seguridad del Mensaje</h4>
+          <table style="width: 100%; font-size: 12px; color: #94a3b8; border-collapse: collapse;">
+            <tr><td style="padding: 4px 0;"><strong>ID de Envío:</strong></td><td style="text-align: right; font-family: monospace;">MSG-${trazabilidadId}</td></tr>
+            <tr><td style="padding: 4px 0;"><strong>Fecha de Generación:</strong></td><td style="text-align: right;">${fechaActual}</td></tr>
+            <tr><td style="padding: 4px 0;"><strong>Hora de Generación:</strong></td><td style="text-align: right;">${horaActual}</td></tr>
+            <tr><td style="padding: 4px 0;"><strong>Plataforma:</strong></td><td style="text-align: right;">VotoSindical Secure System</td></tr>
+          </table>
+        </div>
+      </div>
+      
+      <div style="background-color: #1e293b; padding: 20px; text-align: center; color: #94a3b8; font-size: 11px; line-height: 1.5;">
+        Este es un correo automático generado por el sistema oficial de votación electrónica. Por favor no responda a esta dirección.<br/>
+        <span style="color: #64748b; margin-top: 10px; display: block;">Si usted no hace parte de la organización sindical, por favor haga caso omiso de este mensaje o reporte la posible falla en la remisión contactando al administrador en: <strong>${settings.email}</strong></span>
+      </div>
+    </div>
+  `;
+
+  const text = `
+    ${settings.eleccion_nombre || 'Elecciones Sindicales'}
+    ${settings.union_nombre || ''}
+    
+    Estimado/a ${voter.nombre},
+    
+    Te extendemos una cordial invitación para ejercer tu derecho al voto en la presente jornada electoral. Tu participación es fundamental para fortalecer la democracia dentro de nuestra organización y elegir a nuestros representantes.
+    
+    Tu Código Único y Secreto de Votación:
+    ${voter.token}
+    (Este código es personal, intransferible y de un solo uso.)
+    
+    Enlace de votación:
+    https://votaciones.itasesorias.com/v/${voter.token}
+    
+    Trazabilidad y Seguridad del Mensaje:
+    ID de Envío: MSG-${trazabilidadId}
+    Fecha: ${fechaActual}
+    Hora: ${horaActual}
+    
+    Este es un correo automático. Si usted no hace parte de la organización sindical, por favor haga caso omiso de este mensaje o reporte la posible falla en la remisión contactando al administrador en: ${settings.email}
+  `.replace(/^ +/gm, '').trim();
+
+  return { html, text, attachments };
 };
 
 // Obtener configuración pública
@@ -250,7 +351,7 @@ app.get('/api/admin/voters', authenticateAdmin, (req, res) => {
 
 app.post('/api/admin/voters', authenticateAdmin, (req, res) => {
   const { email, nombre } = req.body;
-  const token = uuidv4();
+  const token = generateToken();
   try {
     const info = db.prepare('INSERT INTO voters (email, nombre, token) VALUES (?, ?, ?)').run(email, nombre, token);
     res.json({ id: info.lastInsertRowid, token });
@@ -293,7 +394,7 @@ app.post('/api/admin/voters/import', authenticateAdmin, upload.single('file'), (
         if (!email) continue;
         const existing = db.prepare('SELECT id FROM voters WHERE email = ?').get(email);
         if (existing) continue;
-        insert.run(nombre.toString(), email.toString(), uuidv4());
+        insert.run(nombre.toString(), email.toString(), generateToken());
       }
     });
     importTransaction(data);
@@ -310,6 +411,27 @@ app.delete('/api/admin/voters', authenticateAdmin, (req, res) => {
   try {
     db.prepare('DELETE FROM voters').run();
     db.prepare('DELETE FROM votes').run(); // Al borrar electores, los votos quedan inválidos
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Actualizar un elector
+app.put('/api/admin/voters/:id', authenticateAdmin, (req, res) => {
+  const { nombre, email } = req.body;
+  try {
+    db.prepare('UPDATE voters SET nombre = ?, email = ? WHERE id = ?').run(nombre, email, req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Borrar un elector
+app.delete('/api/admin/voters/:id', authenticateAdmin, (req, res) => {
+  try {
+    db.prepare('DELETE FROM voters WHERE id = ?').run(req.params.id);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -355,13 +477,16 @@ app.post('/api/admin/reset', authenticateAdmin, (req, res) => {
       db.prepare('DELETE FROM candidates').run();
       db.prepare('DELETE FROM slates').run();
       db.prepare('DELETE FROM voters').run();
+      db.prepare('DELETE FROM positions').run();
+      db.prepare("DELETE FROM sqlite_sequence WHERE name IN ('votes', 'candidates', 'slates', 'voters', 'positions')").run();
+      
       // Resetear configuración a valores por defecto
       db.prepare(`
         UPDATE settings 
         SET union_nombre = ?, eleccion_nombre = ?, eleccion_fecha = ?, email = ?, logo_base64 = ?,
-            smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_secure = ?
+            smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_secure = ?, smtp_delay = ?
         WHERE id = 1
-      `).run("Sindicato Ejemplo", "Elecciones 2024", "", "", "", "", null, "", "", 1);
+      `).run("Sindicato Ejemplo", "Elecciones 2024", "", "", "", "", null, "", "", 1, 1);
     });
     reset();
     res.json({ success: true, message: 'Sistema reseteado correctamente' });
@@ -397,21 +522,115 @@ app.post('/api/admin/restore', authenticateAdmin, upload.single('database'), asy
 app.post('/api/admin/settings', authenticateAdmin, (req, res) => {
   const { 
     union_nombre, eleccion_nombre, eleccion_fecha, email, logo_base64,
-    smtp_host, smtp_port, smtp_user, smtp_pass, smtp_secure
+    smtp_host, smtp_port, smtp_user, smtp_pass, smtp_secure, smtp_delay
   } = req.body;
   try {
     db.prepare(`
       UPDATE settings 
       SET union_nombre = ?, eleccion_nombre = ?, eleccion_fecha = ?, email = ?, logo_base64 = ?,
-          smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_secure = ?
+          smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_secure = ?, smtp_delay = ?
       WHERE id = 1
     `).run(
       union_nombre, eleccion_nombre, eleccion_fecha, email, logo_base64,
-      smtp_host, smtp_port, smtp_user, smtp_pass, smtp_secure ? 1 : 0
+      smtp_host, smtp_port, smtp_user, smtp_pass, smtp_secure ? 1 : 0, smtp_delay !== undefined ? smtp_delay : 1
     );
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// Probar configuración SMTP
+app.post('/api/admin/settings/test-smtp', authenticateAdmin, async (req, res) => {
+  const { smtp_host, smtp_port, smtp_user, smtp_pass, smtp_secure, test_email } = req.body;
+
+  if (!smtp_host || !smtp_user || !smtp_pass) {
+    return res.status(400).json({ error: 'Faltan datos de configuración SMTP para probar' });
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtp_host,
+      port: smtp_port ? parseInt(smtp_port) : 587,
+      secure: smtp_secure === 1 || smtp_secure === true || smtp_secure === 'true',
+      auth: {
+        user: smtp_user,
+        pass: smtp_pass
+      }
+    });
+
+    await transporter.verify();
+
+    await transporter.sendMail({
+      from: `"Prueba VotoSindical" <${smtp_user}>`,
+      to: test_email || smtp_user,
+      subject: 'Prueba de Configuración SMTP Exitosa - VotoSindical',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 15px; text-align: center;">
+          <h2 style="color: #2563eb;">¡Conexión Exitosa!</h2>
+          <p>La configuración SMTP ingresada en VotoSindical es correcta y puede enviar correos.</p>
+        </div>
+      `
+    });
+
+    res.json({ success: true, message: 'Correo de prueba enviado exitosamente a ' + (test_email || smtp_user) });
+  } catch (err) {
+    console.error('SMTP Test Error:', err);
+    res.status(500).json({ error: 'Error de conexión SMTP: ' + err.message });
+  }
+});
+
+// Enviar correo de prueba con la plantilla
+app.post('/api/admin/settings/test-email-template', authenticateAdmin, async (req, res) => {
+  const { smtp_host, smtp_port, smtp_user, smtp_pass, smtp_secure, test_email, union_nombre, eleccion_nombre, logo_base64, email } = req.body;
+
+  if (!smtp_host || !smtp_user || !smtp_pass) {
+    return res.status(400).json({ error: 'Faltan datos de configuración SMTP para probar' });
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtp_host,
+      port: smtp_port ? parseInt(smtp_port) : 587,
+      secure: smtp_secure === 1 || smtp_secure === true || smtp_secure === 'true',
+      auth: {
+        user: smtp_user,
+        pass: smtp_pass
+      }
+    });
+
+    await transporter.verify();
+
+    const dummyVoter = {
+      nombre: 'Elector de Prueba',
+      token: 'ABC1-XYZ9'
+    };
+    
+    const settings = {
+      union_nombre,
+      eleccion_nombre,
+      logo_base64,
+      email
+    };
+
+    const { html, text, attachments } = generateEmailTemplate(settings, dummyVoter, true);
+
+    await transporter.sendMail({
+      from: `"${union_nombre || 'Sindicato'}" <${email || smtp_user}>`,
+      to: test_email || smtp_user,
+      subject: `Elecciones UDEMERITOS 2026 – acceso seguro`,
+      html,
+      text,
+      attachments,
+      headers: {
+        'List-Unsubscribe': `<mailto:${email || smtp_user}?subject=unsubscribe>`
+      }
+    });
+
+    res.json({ success: true, message: 'Plantilla de prueba enviada exitosamente a ' + (test_email || smtp_user) });
+  } catch (err) {
+    console.error('Email Template Test Error:', err);
+    res.status(500).json({ error: 'Error al enviar la plantilla: ' + err.message });
   }
 });
 
@@ -434,10 +653,14 @@ app.put('/api/admin/password', authenticateAdmin, (req, res) => {
 
 // Enviar tokens por email
 app.post('/api/admin/voters/send-emails', authenticateAdmin, async (req, res) => {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Transfer-Encoding', 'chunked');
+
   try {
     const settings = db.prepare('SELECT * FROM settings WHERE id = 1').get();
     if (!settings.smtp_host || !settings.smtp_user || !settings.smtp_pass) {
-      return res.status(400).json({ error: 'Configuración SMTP incompleta' });
+      res.write(JSON.stringify({ type: 'error', error: 'Configuración SMTP incompleta' }) + '\n');
+      return res.end();
     }
 
     const transporter = nodemailer.createTransport({
@@ -453,41 +676,41 @@ app.post('/api/admin/voters/send-emails', authenticateAdmin, async (req, res) =>
     const voters = db.prepare('SELECT * FROM voters WHERE used = 0').all();
     let sentCount = 0;
     let failCount = 0;
+    const totalCount = voters.length;
+
+    res.write(JSON.stringify({ type: 'start', totalCount }) + '\n');
+
+    const delayMs = (settings.smtp_delay !== undefined && settings.smtp_delay !== null ? settings.smtp_delay : 1) * 1000;
 
     for (const voter of voters) {
       try {
+        const { html, text, attachments } = generateEmailTemplate(settings, voter, false);
         await transporter.sendMail({
           from: `"${settings.union_nombre}" <${settings.email}>`,
           to: voter.email,
-          subject: `Tu Token de Votación - ${settings.eleccion_nombre}`,
-          html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 40px; border-radius: 20px;">
-              <h2 style="color: #2563eb;">Hola, ${voter.nombre}</h2>
-              <p>Has sido habilitado para participar en la jornada electoral: <strong>${settings.eleccion_nombre}</strong>.</p>
-              <p>Para votar, ingresa al siguiente enlace:</p>
-              <p style="text-align: center; margin: 20px 0;">
-                <a href="https://votaciones.itasesorias.com/" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Acceder al Sistema de Votación</a>
-              </p>
-              <p>Tu código personal y secreto de votación es:</p>
-              <div style="background: #f8fafc; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #1e293b; border-radius: 15px; margin: 30px 0;">
-                ${voter.token}
-              </div>
-              <p style="color: #64748b; font-size: 14px;">Importante: Este código es de uso único y secreto. No lo compartas con nadie.</p>
-              <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-              <p style="font-size: 12px; color: #94a3b8;">${settings.union_nombre} - Sistema de Voto Electrónico</p>
-            </div>
-          `
+          subject: `Elecciones UDEMERITOS 2026 – acceso seguro`,
+          html,
+          text,
+          attachments,
+          headers: {
+            'List-Unsubscribe': `<mailto:${settings.email}?subject=unsubscribe>`
+          }
         });
         sentCount++;
+        res.write(JSON.stringify({ type: 'progress', sentCount, failCount, email: voter.email }) + '\n');
+        if (delayMs > 0) await sleep(delayMs);
       } catch (err) {
         console.error(`Error enviando a ${voter.email}:`, err);
         failCount++;
+        res.write(JSON.stringify({ type: 'progress', sentCount, failCount, email: voter.email, error: err.message }) + '\n');
       }
     }
 
-    res.json({ success: true, sentCount, failCount });
+    res.write(JSON.stringify({ type: 'done', sentCount, failCount }) + '\n');
+    res.end();
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.write(JSON.stringify({ type: 'error', error: err.message }) + '\n');
+    res.end();
   }
 });
 

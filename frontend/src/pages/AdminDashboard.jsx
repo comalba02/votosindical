@@ -19,6 +19,9 @@ import {
   ShieldCheck,
   BookOpen,
   FolderTree,
+  Search,
+  Eye,
+  EyeOff,
   Code
 } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -34,7 +37,9 @@ export default function AdminDashboard() {
   const [selectedSlate, setSelectedSlate] = useState(null);
   const [editingCandidate, setEditingCandidate] = useState(null);
   const [editingPosition, setEditingPosition] = useState(null);
+  const [editingVoter, setEditingVoter] = useState(null);
   const [candidateModal, setCandidateModal] = useState({ show: false, slateId: null });
+  const [visibleTokens, setVisibleTokens] = useState({});
   const [modalConfig, setModalConfig] = useState({ 
     show: false, 
     type: '', 
@@ -46,6 +51,11 @@ export default function AdminDashboard() {
     confirmWord: '' 
   });
   const [restoreFile, setRestoreFile] = useState(null);
+  const [votersPage, setVotersPage] = useState(1);
+  const [voterSearch, setVoterSearch] = useState('');
+  const [positionSearch, setPositionSearch] = useState('');
+  const [voterSortOrder, setVoterSortOrder] = useState('asc');
+  const [positionSortOrder, setPositionSortOrder] = useState('asc');
   const navigate = useNavigate();
 
   const showAlert = (title, message, type = 'info') => {
@@ -70,9 +80,12 @@ export default function AdminDashboard() {
       navigate('/admin');
       return;
     }
-    if (activeTab !== 'documentation') {
-      fetchData();
+    if (activeTab === 'documentation') {
+      setLoading(false);
+      setError(null);
+      return;
     }
+    fetchData();
   }, [activeTab, navigate, token]);
 
   const fetchData = async (forceLoading = false) => {
@@ -155,39 +168,62 @@ export default function AdminDashboard() {
       const now = new Date();
       const pageWidth = doc.internal.pageSize.getWidth();
       
-      // --- ENCABEZADO PROFESIONAL ---
-      doc.setFillColor(30, 41, 59); // Slate-800
-      doc.rect(0, 0, pageWidth, 40, 'F');
+      // --- PREPARACIÓN DE TEXTOS Y CÁLCULO DE ALTURA ---
+      const unionName = settingsData.union_nombre || 'REPORTE ELECTORAL OFICIAL';
+      const electionName = settingsData.eleccion_nombre || 'Sistema de Voto Sindical Digital';
+      const maxTextWidth = pageWidth - 75; // Espacio seguro para evitar logo y márgenes
       
-      // Fondo circular blanco para el logo
-      doc.setFillColor(255, 255, 255);
-      doc.circle(25, 20, 16, 'F');
-      
-      // Logo si existe
-      if (settingsData.logo_base64) {
-        try {
-          // Ajustar logo más grande (26x26) centrado en el círculo (centro 25,20)
-          doc.addImage(settingsData.logo_base64, 'PNG', 12, 7, 26, 26);
-        } catch (e) { console.error('Error adding logo to PDF', e); }
-      }
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
-      doc.text(settingsData.union_nombre || 'REPORTE ELECTORAL OFICIAL', pageWidth/2 + 10, 18, { align: 'center' });
-      doc.setFontSize(10);
+      doc.setFontSize(14);
+      const splitUnionName = doc.splitTextToSize(unionName, maxTextWidth);
+      
       doc.setFont('helvetica', 'normal');
-      doc.text(settingsData.eleccion_nombre || 'Sistema de Voto Sindical Digital', pageWidth/2 + 10, 25, { align: 'center' });
+      doc.setFontSize(10);
+      const splitElectionName = doc.splitTextToSize(electionName, maxTextWidth);
       
       const headerSubtext = [
         settingsData.eleccion_fecha ? `Fecha Elección: ${settingsData.eleccion_fecha}` : null,
         settingsData.email ? `Contacto: ${settingsData.email}` : null
       ].filter(Boolean).join(' | ');
+
+      // Calcular altura necesaria del encabezado (mínimo 45)
+      const neededHeight = 15 + (splitUnionName.length * 6) + (splitElectionName.length * 5) + 15;
+      const headerHeight = Math.max(45, neededHeight);
+      
+      // --- DIBUJAR ENCABEZADO ---
+      doc.setFillColor(30, 41, 59); // Slate-800
+      doc.rect(0, 0, pageWidth, headerHeight, 'F');
+      
+      // Logo (Centrado verticalmente en el nuevo headerHeight)
+      const logoY = headerHeight / 2;
+      doc.setFillColor(255, 255, 255);
+      doc.circle(25, logoY, 16, 'F');
+      
+      if (settingsData.logo_base64) {
+        try {
+          doc.addImage(settingsData.logo_base64, 'PNG', 12, logoY - 13, 26, 26);
+        } catch (e) { console.error('Error adding logo to PDF', e); }
+      }
+
+      // Dibujar Textos (A la derecha del logo)
+      const centerX = 55 + (pageWidth - 70) / 2;
+      let textY = 15;
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text(splitUnionName, centerX, textY, { align: 'center' });
+      textY += (splitUnionName.length * 6) + 2;
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(splitElectionName, centerX, textY, { align: 'center' });
+      textY += (splitElectionName.length * 5) + 5;
       
       doc.setFontSize(8);
-      doc.text(headerSubtext, pageWidth/2 + 10, 31, { align: 'center' });
+      doc.text(headerSubtext, centerX, textY, { align: 'center' });
       
-      let currentY = 55;
+      let currentY = headerHeight + 15;
 
       // Configuración base para tablas uniformes
       const tableConfig = {
@@ -440,7 +476,7 @@ export default function AdminDashboard() {
     const structure = [
       ['/', 'Raíz del Proyecto', 'Contiene archivos de configuración global y orquestación.'],
       ['/.env', 'Variables de Entorno', 'Configuración de puertos, secretos JWT y URLs de conexión.'],
-      ['/package.json', 'Orquestador NPM', 'Gestiona el arranque simultáneo de backend y frontend.'],
+      ['/package.json', 'Orquestador NPM', 'Gestiona el despliegue concurrente de backend y frontend (start).'],
       ['/backend', 'Carpeta del Servidor', 'Núcleo del sistema, API y Base de Datos.'],
       ['/backend/index.js', 'Punto de Entrada', 'Define las rutas de la API, lógica de votación y envío de correos.'],
       ['/backend/db.js', 'Gestión de BD', 'Inicializa SQLite, define el esquema y maneja migraciones.'],
@@ -450,7 +486,7 @@ export default function AdminDashboard() {
       ['/frontend/src/pages/', 'Vistas/Pantallas', 'Contiene AdminDashboard, Voting, PublicResults y Logins.'],
       ['/frontend/src/components/', 'Componentes UI', 'Elementos reutilizables como la Barra de Navegación y el Layout.'],
       ['/frontend/src/config.js', 'Configuración API', 'Define la dirección de comunicación con el backend.'],
-      ['/frontend/vite.config.js', 'Configuración Vite', 'Define el comportamiento del servidor de desarrollo y compilación.']
+      ['/frontend/vite.config.js', 'Configuración Vite', 'Define servidor de desarrollo, compilación y hosts permitidos (incluyendo localhost).']
     ];
 
     autoTable(doc, {
@@ -494,7 +530,7 @@ export default function AdminDashboard() {
     doc.text('Catálogo de API REST - VotoSindical', 14, 22);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text('Documentación técnica para integración y desarrollo v1.0', 14, 28);
+    doc.text('Documentación técnica para integración y desarrollo v1.1', 14, 28);
     
     let currentY = 45;
     const tableConfig = {
@@ -597,7 +633,9 @@ export default function AdminDashboard() {
       '- El token tiene una validez de 8 horas.',
       '- Todas las rutas que inician con /api/admin/ deben incluir el encabezado:',
       '  Authorization: Bearer <TU_TOKEN_JWT>',
-      '- Las imágenes se envían y reciben en formato Base64 para integridad en la base de datos.'
+      '- Las imágenes se envían y reciben en formato Base64 para integridad en la base de datos.',
+      '- El backend y frontend se ejecutan de manera concurrente, utilizando los puertos',
+      '  definidos en el archivo .env (ej. FRONTEND_PORT=5173).'
     ], 14, currentY + 5);
 
     doc.save(`Documentacion_API_VotoSindical_Completa.pdf`);
@@ -639,6 +677,7 @@ export default function AdminDashboard() {
     // Actualizar solo los campos presentes en el formulario actual
     formData.forEach((value, key) => {
       if (key === 'smtp_port') settings[key] = parseInt(value) || 0;
+      else if (key === 'smtp_delay') settings[key] = parseInt(value) || 0;
       else if (key === 'smtp_secure') settings[key] = 1;
       else settings[key] = value;
     });
@@ -674,6 +713,100 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       showAlert('Error de Guardado', 'No se pudo guardar la configuración', 'danger');
+    }
+  };
+
+  const testSMTP = async (e) => {
+    e.preventDefault();
+    const form = e.target.closest('form');
+    const formData = new FormData(form);
+    const dataObj = Object.fromEntries(formData.entries());
+    
+    dataObj.smtp_secure = formData.get('smtp_secure') === 'on' ? 1 : 0;
+    
+    setModalConfig({
+      show: true,
+      type: 'info',
+      title: 'Prueba de SMTP',
+      message: 'Intentando conectar al servidor SMTP. Esto puede tardar unos segundos...',
+      requireInput: false,
+      onConfirm: null
+    });
+
+    try {
+      const response = await fetch(`${API_URL}/api/admin/settings/test-smtp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(dataObj)
+      });
+      const resData = await response.json();
+      if (response.ok) {
+        setModalConfig(prev => ({ ...prev, show: false }));
+        setTimeout(() => showAlert('Prueba Exitosa', resData.message, 'info'), 300);
+      } else {
+        setModalConfig(prev => ({ ...prev, show: false }));
+        setTimeout(() => showAlert('Error de SMTP', resData.error || 'Fallo en la prueba de conexión', 'danger'), 300);
+      }
+    } catch (err) {
+      setModalConfig(prev => ({ ...prev, show: false }));
+      setTimeout(() => showAlert('Error de Conexión', 'No se pudo conectar con el servidor', 'danger'), 300);
+    }
+  };
+
+  const testEmailTemplate = async (e) => {
+    e.preventDefault();
+    const form = e.target.closest('form');
+    const formData = new FormData(form);
+    const dataObj = Object.fromEntries(formData.entries());
+    
+    dataObj.smtp_secure = formData.get('smtp_secure') === 'on' ? 1 : 0;
+    
+    const generalForm = document.querySelector('form') || document.forms[0]; // Gets the first form (general settings)
+    if (generalForm) {
+      const generalData = new FormData(generalForm);
+      dataObj.union_nombre = generalData.get('union_nombre') || data?.union_nombre;
+      dataObj.eleccion_nombre = generalData.get('eleccion_nombre') || data?.eleccion_nombre;
+      dataObj.email = generalData.get('email') || data?.email;
+    } else {
+      dataObj.union_nombre = data?.union_nombre;
+      dataObj.eleccion_nombre = data?.eleccion_nombre;
+      dataObj.email = data?.email;
+    }
+    
+    dataObj.logo_base64 = data?.logo_base64;
+
+    setModalConfig({
+      show: true,
+      type: 'info',
+      title: 'Prueba de Plantilla',
+      message: 'Enviando correo de prueba con la plantilla de votación...',
+      requireInput: false,
+      onConfirm: null
+    });
+
+    try {
+      const response = await fetch(`${API_URL}/api/admin/settings/test-email-template`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(dataObj)
+      });
+      const resData = await response.json();
+      if (response.ok) {
+        setModalConfig(prev => ({ ...prev, show: false }));
+        setTimeout(() => showAlert('Plantilla Enviada', resData.message, 'info'), 300);
+      } else {
+        setModalConfig(prev => ({ ...prev, show: false }));
+        setTimeout(() => showAlert('Error', resData.error || 'Fallo al enviar la plantilla', 'danger'), 300);
+      }
+    } catch (err) {
+      setModalConfig(prev => ({ ...prev, show: false }));
+      setTimeout(() => showAlert('Error de Conexión', 'No se pudo conectar con el servidor', 'danger'), 300);
     }
   };
 
@@ -717,8 +850,14 @@ export default function AdminDashboard() {
             setCache({}); // Invalida TODO el cache en un reset
             setActiveTab('results');
             fetchData(true);
+            showAlert('Éxito', 'El sistema ha sido reseteado correctamente.', 'info');
+          } else {
+            const resData = await response.json().catch(() => ({}));
+            setModalConfig(prev => ({ ...prev, show: false }));
+            showAlert('Error de Reset', resData.error || 'No se pudo resetear el sistema', 'danger');
           }
         } catch (err) {
+          setModalConfig(prev => ({ ...prev, show: false }));
           showAlert('Error de Reset', 'No se pudo resetear el sistema', 'danger');
         }
       }
@@ -926,6 +1065,56 @@ export default function AdminDashboard() {
     }
   };
 
+  const updateVoter = async (e, id) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const nombre = formData.get('nombre');
+    const email = formData.get('email');
+    
+    try {
+      const response = await fetch(`${API_URL}/api/admin/voters/${id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ nombre, email })
+      });
+      if (response.ok) {
+        setEditingVoter(null);
+        invalidateCache('voters');
+        fetchData(true);
+      }
+    } catch (err) {
+      showAlert('Error', 'No se pudo actualizar el elector', 'danger');
+    }
+  };
+
+  const deleteVoter = (id) => {
+    setModalConfig({
+      show: true,
+      type: 'danger',
+      title: 'ELIMINAR ELECTOR',
+      message: '¿Estás seguro de que deseas eliminar a este elector permanentemente?',
+      requireInput: false,
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`${API_URL}/api/admin/voters/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (response.ok) {
+            setModalConfig(prev => ({ ...prev, show: false }));
+            invalidateCache('voters');
+            fetchData(true);
+          }
+        } catch (err) {
+          showAlert('Error', 'No se pudo eliminar el elector', 'danger');
+        }
+      }
+    });
+  };
+
   const deleteAllVoters = () => {
     setModalConfig({
       show: true,
@@ -998,8 +1187,13 @@ export default function AdminDashboard() {
             invalidateCache('results');
             fetchData();
             showAlert('Reinicio Exitoso', 'La votación ha vuelto a cero y el censo ha sido habilitado.', 'info');
+          } else {
+            const resData = await response.json().catch(() => ({}));
+            setModalConfig(prev => ({ ...prev, show: false }));
+            showAlert('Error', resData.error || 'No se pudo reiniciar la votación', 'danger');
           }
         } catch (err) {
+          setModalConfig(prev => ({ ...prev, show: false }));
           showAlert('Error', 'No se pudo reiniciar la votación', 'danger');
         }
       }
@@ -1049,18 +1243,67 @@ export default function AdminDashboard() {
       confirmWord: 'CONFIRMADO',
       onConfirm: async () => {
         try {
+          setModalConfig(prev => ({
+            ...prev,
+            requireInput: false,
+            isProgress: true,
+            progress: 0,
+            progressText: 'Iniciando envío...',
+            onConfirm: null 
+          }));
+
           const response = await fetch(`${API_URL}/api/admin/voters/send-emails`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` }
           });
-          const resData = await response.json();
-          if (response.ok) {
+          
+          if (!response.ok) {
             setModalConfig(prev => ({ ...prev, show: false }));
-            showAlert('Envío Completado', `Se enviaron ${resData.sentCount} correos exitosamente. Errores: ${resData.failCount}`, 'info');
-          } else {
-            showAlert('Error de Envío', resData.error || 'No se pudo procesar el envío de correos', 'danger');
+            showAlert('Error', 'No se pudo iniciar el envío', 'danger');
+            return;
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder("utf-8");
+          let totalCount = 0;
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // Keep incomplete line
+
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              try {
+                const data = JSON.parse(line);
+                if (data.type === 'start') {
+                  totalCount = data.totalCount;
+                  setModalConfig(prev => ({ ...prev, progress: 0, progressText: `Preparando envío a ${totalCount} electores...` }));
+                } else if (data.type === 'progress') {
+                  const currentProgress = totalCount > 0 ? ((data.sentCount + data.failCount) / totalCount) * 100 : 0;
+                  setModalConfig(prev => ({ 
+                    ...prev, 
+                    progress: currentProgress, 
+                    progressText: `Enviando... (${data.sentCount} exitosos, ${data.failCount} fallidos)` 
+                  }));
+                } else if (data.type === 'done') {
+                  setModalConfig(prev => ({ ...prev, show: false, isProgress: false }));
+                  showAlert('Envío Completado', `Se enviaron ${data.sentCount} correos exitosamente. Errores: ${data.failCount}`, 'info');
+                } else if (data.type === 'error') {
+                  setModalConfig(prev => ({ ...prev, show: false, isProgress: false }));
+                  showAlert('Error de Envío', data.error || 'Ocurrió un error en el servidor', 'danger');
+                }
+              } catch (e) {
+                console.error("Error parseando línea streaming", line, e);
+              }
+            }
           }
         } catch (err) {
+          setModalConfig(prev => ({ ...prev, show: false, isProgress: false }));
           showAlert('Error', 'Error de conexión con el servidor de correo', 'danger');
         }
       }
@@ -1344,6 +1587,29 @@ export default function AdminDashboard() {
     }
 
     if (activeTab === 'voters') {
+      const itemsPerPage = 10;
+      let votersList = Array.isArray(data) ? data : [];
+      
+      if (voterSearch.trim() !== '') {
+        const searchLower = voterSearch.toLowerCase();
+        votersList = votersList.filter(v => 
+          (v.nombre && v.nombre.toLowerCase().includes(searchLower)) ||
+          (v.email && v.email.toLowerCase().includes(searchLower)) ||
+          (v.token && v.token.toLowerCase().includes(searchLower))
+        );
+      }
+
+      votersList.sort((a, b) => {
+        const nameA = a.nombre ? a.nombre.toLowerCase() : '';
+        const nameB = b.nombre ? b.nombre.toLowerCase() : '';
+        return voterSortOrder === 'asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+      });
+
+      const totalPages = Math.ceil(votersList.length / itemsPerPage) || 1;
+      const currentPage = Math.min(votersPage, Math.max(1, totalPages));
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const paginatedVoters = votersList.slice(startIndex, startIndex + itemsPerPage);
+
       return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in-up">
           <div className="lg:col-span-1">
@@ -1401,7 +1667,31 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="lg:col-span-2">
-             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+              <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Buscar elector por nombre, email o token..." 
+                      value={voterSearch}
+                      onChange={(e) => {
+                        setVoterSearch(e.target.value);
+                        setVotersPage(1);
+                      }}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm font-medium text-slate-700 placeholder-slate-400 shadow-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setVoterSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    className="flex-shrink-0 px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-2 font-bold text-slate-600 text-sm"
+                    title={`Ordenar de ${voterSortOrder === 'asc' ? 'Z a A' : 'A a Z'}`}
+                  >
+                    {voterSortOrder === 'asc' ? 'A-Z' : 'Z-A'}
+                  </button>
+                </div>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
@@ -1410,33 +1700,96 @@ export default function AdminDashboard() {
                       <th className="px-6 py-3 font-medium">Email</th>
                       <th className="px-6 py-3 font-medium">Token</th>
                       <th className="px-6 py-3 font-medium">Estado</th>
+                      <th className="px-6 py-3 font-medium text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {Array.isArray(data) && data.map(v => (
+                    {paginatedVoters.map(v => (
                       <tr key={v.id} className="hover:bg-slate-50">
-                        <td className="px-6 py-3 font-medium text-slate-800">{v.nombre}</td>
-                        <td className="px-6 py-3 text-slate-500">{v.email}</td>
-                        <td className="px-6 py-3 text-slate-400 font-mono text-xs select-all">
-                          {v.token || 'Sin token'}
-                        </td>
-                        <td className="px-6 py-3">
-                          {v.used ? (
-                            <span className="px-2 py-1 bg-red-50 text-red-600 rounded text-xs font-medium">Ya Votó</span>
-                          ) : (
-                            <span className="px-2 py-1 bg-green-50 text-green-600 rounded text-xs font-medium">Pendiente</span>
-                          )}
-                        </td>
+                        {editingVoter === v.id ? (
+                          <td colSpan="5" className="px-6 py-3">
+                            <form onSubmit={(e) => updateVoter(e, v.id)} className="flex gap-2 items-center w-full">
+                              <input name="nombre" defaultValue={v.nombre} required className="px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none flex-1 text-sm" placeholder="Nombre completo" />
+                              <input name="email" type="email" defaultValue={v.email} required className="px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none flex-1 text-sm" placeholder="Correo electrónico" />
+                              <button type="submit" className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700">Guardar</button>
+                              <button type="button" onClick={() => setEditingVoter(null)} className="bg-slate-200 text-slate-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-300">Cancelar</button>
+                            </form>
+                          </td>
+                        ) : (
+                          <>
+                            <td className="px-6 py-3 font-medium text-slate-800">{v.nombre}</td>
+                            <td className="px-6 py-3 text-slate-500">{v.email}</td>
+                            <td className="px-6 py-3 font-mono text-xs select-all">
+                              {v.token ? (
+                                <div className="flex items-center gap-2 text-slate-500">
+                                  <span className="w-20">
+                                    {visibleTokens[v.id] 
+                                      ? v.token 
+                                      : `****-${v.token.split('-')[1] || v.token.slice(-4)}`}
+                                  </span>
+                                  <button 
+                                    onClick={() => setVisibleTokens(prev => ({ ...prev, [v.id]: !prev[v.id] }))}
+                                    className="text-slate-400 hover:text-blue-600 transition-colors focus:outline-none"
+                                    title={visibleTokens[v.id] ? "Ocultar token" : "Mostrar token"}
+                                  >
+                                    {visibleTokens[v.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400">Sin token</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-3">
+                              {v.used ? (
+                                <span className="px-2 py-1 bg-red-50 text-red-600 rounded text-xs font-medium">Ya Votó</span>
+                              ) : (
+                                <span className="px-2 py-1 bg-green-50 text-green-600 rounded text-xs font-medium">Pendiente</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-3 text-right">
+                              <div className="flex gap-2 justify-end">
+                                <button onClick={() => setEditingVoter(v.id)} className="text-blue-600 hover:text-blue-800 font-bold text-xs bg-blue-50 hover:bg-blue-100 transition-colors px-3 py-1.5 rounded-lg">Editar</button>
+                                <button onClick={() => deleteVoter(v.id)} className="text-red-600 hover:text-red-800 font-bold text-xs bg-red-50 hover:bg-red-100 transition-colors px-3 py-1.5 rounded-lg">Eliminar</button>
+                              </div>
+                            </td>
+                          </>
+                        )}
                       </tr>
                     ))}
-                    {(!data || !Array.isArray(data) || data.length === 0) && (
-                      <tr><td colSpan="4" className="px-6 py-8 text-center text-slate-500">No hay electores registrados</td></tr>
+                    {votersList.length === 0 && (
+                      <tr><td colSpan="5" className="px-6 py-8 text-center text-slate-500">No hay electores registrados</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
+              {votersList.length > 0 && (
+                <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50">
+                  <span className="text-sm text-slate-500 font-medium">
+                    Mostrando {startIndex + 1} a {Math.min(startIndex + itemsPerPage, votersList.length)} de {votersList.length}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setVotersPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1.5 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
+                    >
+                      Anterior
+                    </button>
+                    <span className="px-3 py-1.5 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm">
+                      Página {currentPage} de {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setVotersPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1.5 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-            {(Array.isArray(data) && data.length > 0) && (
+            {votersList.length > 0 && (
               <div className="mt-6 flex justify-end gap-4">
                 <button 
                   onClick={sendTokensByEmail}
@@ -1471,7 +1824,7 @@ export default function AdminDashboard() {
       if (!data || Array.isArray(data)) return <div className="p-8 text-center text-slate-500">Cargando configuración...</div>;
       
       return (
-        <div className="max-w-2xl mx-auto animate-fade-in-up">
+        <div className="w-full animate-fade-in-up space-y-8">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
               <h3 className="font-bold text-slate-700 flex items-center gap-2">
@@ -1556,7 +1909,7 @@ export default function AdminDashboard() {
             </form>
           </div>
 
-          <div className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
               <h3 className="font-bold text-slate-700 flex items-center gap-2">
                 <Mail className="w-5 h-5 text-blue-600" />
@@ -1596,11 +1949,22 @@ export default function AdminDashboard() {
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Contraseña SMTP</label>
                   <input 
+                    type="password" 
                     name="smtp_pass" 
-                    type="password"
                     defaultValue={data.smtp_pass}
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold text-slate-700"
                     placeholder="Contraseña de aplicación"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Retardo (Segundos)</label>
+                  <input 
+                    type="number" 
+                    name="smtp_delay" 
+                    min="0"
+                    defaultValue={data.smtp_delay || 1}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold text-slate-700"
+                    placeholder="1"
                   />
                 </div>
               </div>
@@ -1614,12 +1978,27 @@ export default function AdminDashboard() {
                 />
                 <label htmlFor="smtp_secure" className="text-sm font-bold text-slate-600">Usar SSL/TLS (Puerto 465)</label>
               </div>
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-2 gap-3 flex-wrap sm:flex-nowrap">
+                <button 
+                  type="button"
+                  onClick={testSMTP}
+                  className="bg-white border-2 border-slate-200 text-slate-700 px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-sm hover:border-blue-500 hover:text-blue-600 transition-all active:scale-95 flex-1 sm:flex-none whitespace-nowrap text-center justify-center"
+                >
+                  Probar Conexión
+                </button>
+                <button 
+                  type="button"
+                  onClick={testEmailTemplate}
+                  className="bg-blue-50 border-2 border-blue-100 text-blue-600 px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-sm hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95 flex items-center justify-center gap-2 flex-1 sm:flex-none whitespace-nowrap"
+                >
+                  <FileText className="w-4 h-4" />
+                  Probar Plantilla
+                </button>
                 <button 
                   type="submit"
-                  className="bg-slate-800 text-white px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl hover:bg-slate-900 hover:-translate-y-1 transition-all active:scale-95"
+                  className="bg-slate-800 text-white px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl hover:bg-slate-900 hover:-translate-y-1 transition-all active:scale-95 flex-1 sm:flex-none whitespace-nowrap text-center justify-center"
                 >
-                  Guardar Configuración SMTP
+                  Guardar Configuración
                 </button>
               </div>
             </form>
@@ -1740,6 +2119,27 @@ export default function AdminDashboard() {
           </div>
           <div className="lg:col-span-2">
              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Buscar cargo por nombre..." 
+                      value={positionSearch}
+                      onChange={(e) => setPositionSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm font-medium text-slate-700 placeholder-slate-400 shadow-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setPositionSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    className="flex-shrink-0 px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-2 font-bold text-slate-600 text-sm"
+                    title={`Ordenar de ${positionSortOrder === 'asc' ? 'Z a A' : 'A a Z'}`}
+                  >
+                    {positionSortOrder === 'asc' ? 'A-Z' : 'Z-A'}
+                  </button>
+                </div>
+              </div>
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
                   <tr>
@@ -1748,8 +2148,15 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {Array.isArray(data) && data.map(p => (
-                    <tr key={p.id} className="hover:bg-slate-50">
+                  {Array.isArray(data) && data
+                    .filter(p => p.nombre.toLowerCase().includes(positionSearch.toLowerCase()))
+                    .sort((a, b) => {
+                      const nameA = a.nombre ? a.nombre.toLowerCase() : '';
+                      const nameB = b.nombre ? b.nombre.toLowerCase() : '';
+                      return positionSortOrder === 'asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+                    })
+                    .map(p => (
+                      <tr key={p.id} className="hover:bg-slate-50">
                       <td className="px-6 py-3">
                         {editingPosition === p.id ? (
                           <form onSubmit={(e) => updatePosition(e, p.id)} className="flex gap-2">
@@ -1769,8 +2176,8 @@ export default function AdminDashboard() {
                       </td>
                     </tr>
                   ))}
-                  {(!data || !Array.isArray(data) || data.length === 0) && (
-                    <tr><td colSpan="2" className="px-6 py-8 text-center text-slate-500">No hay cargos registrados</td></tr>
+                  {(!data || !Array.isArray(data) || data.filter(p => p.nombre.toLowerCase().includes(positionSearch.toLowerCase())).length === 0) && (
+                    <tr><td colSpan="2" className="px-6 py-8 text-center text-slate-500">No se encontraron cargos</td></tr>
                   )}
                 </tbody>
               </table>
@@ -2125,7 +2532,16 @@ export default function AdminDashboard() {
             </div>
             
             <div className="p-8 space-y-6">
-              {modalConfig.requireInput && (
+              {modalConfig.isProgress ? (
+                <div className="animate-fade-in-up">
+                  <div className="w-full bg-slate-100 rounded-full h-4 mb-2 overflow-hidden border border-slate-200">
+                    <div className="bg-blue-500 h-full rounded-full transition-all duration-300 relative overflow-hidden" style={{ width: `${modalConfig.progress || 0}%` }}>
+                      <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                    </div>
+                  </div>
+                  <p className="text-center text-xs font-bold text-slate-500 uppercase tracking-wider">{modalConfig.progressText || 'Procesando...'}</p>
+                </div>
+              ) : modalConfig.requireInput && (
                 <div className="animate-fade-in-up">
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 text-center">Escribe "{modalConfig.confirmWord}" para confirmar</label>
                   <input 
@@ -2140,15 +2556,17 @@ export default function AdminDashboard() {
               )}
               
               <div className="flex flex-col gap-3">
+                {modalConfig.onConfirm && (
+                  <button 
+                    onClick={modalConfig.onConfirm}
+                    disabled={modalConfig.requireInput && modalConfig.inputValue !== modalConfig.confirmWord}
+                    className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-30 disabled:grayscale ${modalConfig.type === 'danger' ? 'bg-red-600 text-white hover:bg-red-700 shadow-red-200/50' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200/50'}`}
+                  >
+                    Confirmar Acción
+                  </button>
+                )}
                 <button 
-                  onClick={modalConfig.onConfirm}
-                  disabled={modalConfig.requireInput && modalConfig.inputValue !== modalConfig.confirmWord}
-                  className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-30 disabled:grayscale ${modalConfig.type === 'danger' ? 'bg-red-600 text-white hover:bg-red-700 shadow-red-200/50' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200/50'}`}
-                >
-                  Confirmar Acción
-                </button>
-                <button 
-                  onClick={() => setModalConfig(prev => ({ ...prev, show: false }))}
+                  onClick={() => setModalConfig(prev => ({ ...prev, show: false, isProgress: false }))}
                   className="w-full py-4 rounded-2xl font-bold text-slate-400 hover:text-slate-600 transition-colors text-sm uppercase tracking-widest"
                 >
                   Cancelar Operación

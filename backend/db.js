@@ -8,6 +8,7 @@ dotenvExpand.expand(myEnv);
 
 
 const db = new Database(path.join(__dirname, 'database.sqlite'));
+db.pragma('journal_mode = WAL'); // Activa el modo Write-Ahead Logging para mejorar la concurrencia
 
 // Inicializar tablas
 db.exec(`
@@ -22,7 +23,9 @@ db.exec(`
       smtp_port INTEGER,
       smtp_user TEXT,
       smtp_pass TEXT,
-      smtp_secure INTEGER DEFAULT 1
+      smtp_secure INTEGER DEFAULT 1,
+      smtp_delay INTEGER DEFAULT 1,
+      cargos_initialized INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS slates (
@@ -73,9 +76,21 @@ db.exec(`
     CREATE INDEX IF NOT EXISTS idx_votes_slate ON votes(slate_id);
   `);
 
-// Insertar cargos iniciales si la tabla está vacía
-const positionCount = db.prepare('SELECT COUNT(*) as count FROM positions').get().count;
-if (positionCount === 0) {
+// Asegurar que existe la fila de configuración id = 1
+const settingsCheck = db.prepare('SELECT * FROM settings WHERE id = 1').get();
+if (!settingsCheck) {
+  db.prepare(`
+    INSERT INTO settings (id, union_nombre, eleccion_nombre, eleccion_fecha, email, logo_base64, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_secure, smtp_delay, cargos_initialized)
+    VALUES (1, 'Sindicato Ejemplo', 'Elecciones 2024', '', '', '', '', null, '', '', 1, 1, 0)
+  `).run();
+  console.log('Configuración inicial creada.');
+}
+
+// Insertar cargos iniciales si no han sido inicializados antes
+const currentSettings = db.prepare('SELECT cargos_initialized FROM settings WHERE id = 1').get();
+const isInitialized = currentSettings ? currentSettings.cargos_initialized : 0;
+
+if (isInitialized === 0) {
   const defaultPositions = [
     'Presidente',
     'Vicepresidente',
@@ -87,11 +102,13 @@ if (positionCount === 0) {
     'Secretaría de Educación',
     'Secretaría de Tecnología'
   ];
-  const insertPosition = db.prepare('INSERT INTO positions (nombre) VALUES (?)');
+  const insertPosition = db.prepare('INSERT OR IGNORE INTO positions (nombre) VALUES (?)');
   db.transaction(() => {
     for (const pos of defaultPositions) {
       insertPosition.run(pos);
     }
+    // Marcar como inicializado
+    db.prepare('UPDATE settings SET cargos_initialized = 1 WHERE id = 1').run();
   })();
   console.log('Cargos iniciales insertados.');
 }
@@ -108,6 +125,16 @@ if (!columns.includes('smtp_host')) {
     ALTER TABLE settings ADD COLUMN smtp_pass TEXT;
     ALTER TABLE settings ADD COLUMN smtp_secure INTEGER DEFAULT 1;
   `);
+}
+
+if (!columns.includes('smtp_delay')) {
+  db.exec('ALTER TABLE settings ADD COLUMN smtp_delay INTEGER DEFAULT 1');
+}
+
+if (!columns.includes('cargos_initialized')) {
+  db.exec('ALTER TABLE settings ADD COLUMN cargos_initialized INTEGER DEFAULT 0');
+  // Si ya existían datos, marcar como inicializado para no duplicar ni forzar su inserción
+  db.exec('UPDATE settings SET cargos_initialized = 1 WHERE id = 1');
 }
 
 const votersTableInfo = db.prepare("PRAGMA table_info(voters)").all();

@@ -12,6 +12,7 @@ function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<ElectorLogin />} />
+          <Route path="/v/:urlToken" element={<ElectorLogin />} />
           <Route path="/vote" element={<Voting />} />
           <Route path="/results" element={<PublicResults />} />
           <Route path="/admin" element={<AdminLogin />} />

@@ -105,8 +105,32 @@ export default function Voting() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-[50vh]">
-        <div className="w-12 h-12 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin"></div>
+      <div className="flex flex-col justify-center items-center min-h-[60vh] gap-6">
+        <div className="w-16 h-16 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin shadow-xl"></div>
+        <div className="text-center animate-pulse">
+          <h3 className="text-xl font-bold text-slate-700">Cargando tu papeleta...</h3>
+          <p className="text-slate-500 text-sm">Validando acceso seguro</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && slates.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 text-center">
+        <div className="w-20 h-20 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center mb-6 border border-red-100 shadow-sm">
+          <AlertCircle className="w-10 h-10" />
+        </div>
+        <h2 className="text-2xl font-black text-slate-800 mb-2">Error de Conexión</h2>
+        <p className="text-slate-500 max-w-sm mb-8">
+          No pudimos cargar las opciones de votación. Esto puede deberse a una conexión inestable o saturación del servidor.
+        </p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-8 py-4 bg-blue-600 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95"
+        >
+          Reintentar Carga
+        </button>
       </div>
     );
   }
